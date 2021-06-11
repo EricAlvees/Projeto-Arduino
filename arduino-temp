@@ -1,0 +1,36 @@
+
+#define termometro A0
+#define fan 3
+
+float temperatura = 0;
+
+
+void Monitoramento()
+{
+  temperatura = int((float(analogRead(termometro))*5/(1023))/0.01);
+  
+  Serial.print("Temperatura: ");
+  Serial.println(temperatura);
+
+  if(temperatura > 25)
+  {
+    digitalWrite(fan, HIGH);
+  }
+  else
+  {
+    digitalWrite(fan, LOW);
+  }
+}
+
+void setup()
+{
+  pinMode(fan, OUTPUT);
+  pinMode(termometro, INPUT);
+  Serial.begin(9600);
+}
+
+void loop()
+{
+  Monitoramento();
+  delay(1000);
+}
