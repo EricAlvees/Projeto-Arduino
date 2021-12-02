@@ -1,36 +1,192 @@
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
 
-#define termometro A0
-#define fan 3
+#define LED1 6
+#define LED2 7
+#define LED3 8
+#define LED4 9
+#define TRIGGER 11
+#define ECHO 12
+#define BUZZER 3
+ 
 
-float temperatura = 0;
+const float som = 34300.0;
+const float limite1 = 20.0;
+const float limite2 = 10.0;
+const float limite3 = 5.0;
+const float limite4 = 3.0;
+const char* ssid = "Eric Wi-Fi";
+const char* password = "eaaundergroud8002";
+const char* mqtt_server = "broker.mqtt-dashboard.com";
 
+WiFiClient espClient;
+PubSubClient client(espClient);
+unsigned long lastMsg = 0;
+#define MSG_BUFFER_SIZE	(50)
+char msg[MSG_BUFFER_SIZE];
+int value = 0;
 
-void Monitoramento()
-{
-  temperatura = int((float(analogRead(termometro))*5/(1023))/0.01);
-  
-  Serial.print("Temperatura: ");
-  Serial.println(temperatura);
+void setup_wifi() {
 
-  if(temperatura > 25)
-  {
-    digitalWrite(fan, HIGH);
+  delay(10);
+  // We start by connecting to a WiFi network
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(ssid);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
   }
-  else
-  {
-    digitalWrite(fan, LOW);
-  }
+
+  randomSeed(micros());
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
-void setup()
-{
-  pinMode(fan, OUTPUT);
-  pinMode(termometro, INPUT);
-  Serial.begin(9600);
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+  // Switch on the LED if an 1 was received as first character
+  if ((char)payload[0] == '1') {
+    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
+    // but actually the LED is on; this is because
+    // it is active low on the ESP-01)
+  } else {
+    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+  }
+
 }
 
-void loop()
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    String clientId = "ESP8266Client-";
+    clientId += String(random(0xffff), HEX);
+    // Attempt to connect
+    if (client.connect(clientId.c_str())) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      client.publish("publicacao_do_esp8266", "hello world");
+      // ... and resubscribe
+      client.subscribe("subscricao_do_esp8266");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
+} 
+
+
+void setup() {
+ 
+Serial.begin(9600);
+ 
+pinMode(LED1, OUTPUT);
+pinMode(LED2, OUTPUT);
+pinMode(LED3, OUTPUT);
+pinMode(LED4, OUTPUT);
+pinMode(ECHO, INPUT);
+pinMode(TRIGGER, OUTPUT);
+pinMode(BUZZER, OUTPUT);
+ 
+desligarLEDs();
+ 
+}
+ 
+void loop() {
+ 
+
+inicializarTrigger();
+ 
+// Obtenha a distância
+float distancia = calcularDistancia ();
+ 
+// Desligar os LEDs
+desligarLEDs();
+ 
+// Alerta se estiver dentro da zona de perigo
+if (distancia < limite1){
+// Dispara os alertas
+alertas(distancia);
+}
+ 
+}
+ 
+// Função de desligar os LEDs
+void desligarLEDs()
 {
-  Monitoramento();
-  delay(1000);
+digitalWrite(LED1, LOW);
+digitalWrite(LED2, LOW);
+digitalWrite(LED3, LOW);
+digitalWrite(LED4, LOW);
+}
+ 
+void alertas (float distancia){
+ 
+if (distancia < limite1 && distancia >= limite2){
+ 
+digitalWrite(LED1, HIGH);
+tone(BUZZER, 1500, 50);
+}
+ 
+else if (distancia < limite2 && distancia >= limite3){
+ 
+
+digitalWrite(LED1, HIGH);
+digitalWrite(LED2, HIGH);
+tone(BUZZER, 2000, 100);
+}
+ 
+else if (distancia < limite3 && distancia >= limite4){
+ 
+digitalWrite(LED1, HIGH);
+digitalWrite(LED2, HIGH);
+digitalWrite(LED3, HIGH);
+tone(BUZZER, 2750, 150);
+}
+ 
+else if (distancia < limite4){
+ 
+digitalWrite(LED1, HIGH);
+digitalWrite(LED2, HIGH);
+digitalWrite(LED3, HIGH);
+digitalWrite(LED4, HIGH);
+tone(BUZZER, 3000, 200);
+}
+}
+ 
+float calcularDistancia(){
+unsigned long time = pulseIn(ECHO, HIGH);
+float distancia = time* 0.000001 * som / 2.0;
+Serial.print(distancia);
+Serial.print("cm");
+Serial.println();
+delay(500);
+return distancia;
+}
+ 
+void inicializarTrigger(){
+digitalWrite(TRIGGER, LOW);
+delayMicroseconds(2);
+digitalWrite(TRIGGER, HIGH);
+delayMicroseconds(10);
+digitalWrite(TRIGGER, LOW);
 }
